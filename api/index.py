@@ -11,11 +11,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 def load_students():
     with open("q-fastapi.csv", newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
-@app.get("/api")
+
+@app.get("/")
 async def get_students(
     class_: list[str] | None = Query(default=None, alias="class")
 ):
