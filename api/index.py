@@ -1,12 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import statistics
 import json
-import os
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,20 +25,45 @@ with open("q-vercel-latency.json", "r") as f:
 
 def p95(values):
     values = sorted(values)
-    k = (len(values) - 1) * 0.95
-    lo = int(k)
-    hi = min(lo + 1, len(values) - 1)
-    return values[lo] + (values[hi] - values[lo]) * (k - lo)
+    r = (len(values) - 1) * 0.95
+    n = int(r)
+    fraction = r - n
+
+    if n + 1 < len(values):
+        return values[n] + fraction * (values[n + 1] - values[n])
+
+    return values[n]
+
+@app.options("/")
+async def options():
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 @app.post("/")
-def calculate(req: RequestBody):
+async def calculate(req: RequestBody):
     result = {}
 
     for region in req.regions:
-        rows = [r for r in DATA if r["region"] == region]
+        rows = [
+            r for r in DATA
+            if r["region"] == region
+        ]
 
-        latencies = [r["latency_ms"] for r in rows]
-        uptimes = [r["uptime_pct"] for r in rows]
+        latencies = [
+            r["latency_ms"]
+            for r in rows
+        ]
+
+        uptimes = [
+            r["uptime_pct"]
+            for r in rows
+        ]
 
         result[region] = {
             "avg_latency": statistics.mean(latencies),
@@ -46,7 +72,12 @@ def calculate(req: RequestBody):
             "breaches": sum(
                 r["latency_ms"] > req.threshold_ms
                 for r in rows
-            )
+            ),
         }
 
-    return result
+    return JSONResponse(
+        content=result,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
