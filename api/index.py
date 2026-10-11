@@ -1,78 +1,31 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-import statistics
-import json
+import csv
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET"],
     allow_headers=["*"],
 )
 
+def load_students():
+    with open("q-fastapi.csv", newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
-class RequestBody(BaseModel):
-    regions: list[str]
-    threshold_ms: float
+@app.get("/api")
+async def get_students(
+    class_: list[str] | None = Query(default=None, alias="class")
+):
+    students = load_students()
 
-
-with open("q-vercel-latency.json", "r") as f:
-    DATA = json.load(f)
-
-
-def p95(values):
-    values = sorted(values)
-
-    r = (len(values) - 1) * 0.95
-    n = int(r)
-    fraction = r - n
-
-    if n + 1 < len(values):
-        return values[n] + fraction * (values[n + 1] - values[n])
-
-    return values[n]
-
-
-@app.post("/")
-def calculate(req: RequestBody):
-    result = {}
-
-    for region in req.regions:
-        rows = [
-            row for row in DATA
-            if row["region"] == region
+    if class_:
+        students = [
+            student
+            for student in students
+            if student["class"] in class_
         ]
 
-        latencies = [
-            row["latency_ms"]
-            for row in rows
-        ]
-
-        uptimes = [
-            row["uptime_pct"]
-            for row in rows
-        ]
-
-        result[region] = {
-            "avg_latency": statistics.mean(latencies),
-            "p95_latency": p95(latencies),
-            "avg_uptime": statistics.mean(uptimes),
-            "breaches": sum(
-                row["latency_ms"] > req.threshold_ms
-                for row in rows
-            ),
-        }
-
-    return JSONResponse(
-        content={
-            "regions": result
-        },
-        headers={
-            "Access-Control-Allow-Origin": "*"
-        }
-    )
+    return {"students": students}
