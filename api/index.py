@@ -7,7 +7,6 @@ import json
 
 app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +21,6 @@ class RequestBody(BaseModel):
     threshold_ms: float
 
 
-# Load telemetry data
 with open("q-vercel-latency.json", "r") as f:
     DATA = json.load(f)
 
@@ -46,18 +44,18 @@ def calculate(req: RequestBody):
 
     for region in req.regions:
         rows = [
-            r for r in DATA
-            if r["region"] == region
+            row for row in DATA
+            if row["region"] == region
         ]
 
         latencies = [
-            r["latency_ms"]
-            for r in rows
+            row["latency_ms"]
+            for row in rows
         ]
 
         uptimes = [
-            r["uptime_pct"]
-            for r in rows
+            row["uptime_pct"]
+            for row in rows
         ]
 
         result[region] = {
@@ -65,14 +63,11 @@ def calculate(req: RequestBody):
             "p95_latency": p95(latencies),
             "avg_uptime": statistics.mean(uptimes),
             "breaches": sum(
-                r["latency_ms"] > req.threshold_ms
-                for r in rows
+                row["latency_ms"] > req.threshold_ms
+                for row in rows
             ),
         }
 
-    # IMPORTANT:
-    # The grader expects a top-level "regions" field
-    # and checks the POST response for this CORS header.
     return JSONResponse(
         content={
             "regions": result
